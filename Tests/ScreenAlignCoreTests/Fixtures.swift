@@ -76,3 +76,10 @@ func calibratedDesk() -> [EdgeCalibration] {
     }
     return wizard.calibrations
 }
+
+/// The same desk, with each monitor reporting its true physical size.
+func reportingSize(_ display: Display) -> Display {
+    guard let screen = physical(display) else { return display }
+    let size = CGSize(width: display.frame.width / screen.pointsPerMillimetre, height: display.frame.height / screen.pointsPerMillimetre)
+    return Display(id: display.id, name: display.name, frame: display.frame, isMain: display.isMain, key: display.key, millimetres: size)
+}

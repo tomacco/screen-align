@@ -35,7 +35,7 @@ extension SystemDisplayArrangement {
 
     private func makeDisplay(_ id: DisplayID) -> Display {
         Display(id: id, name: screenName(id), frame: CGDisplayBounds(id), isMain: CGDisplayIsMain(id) != 0,
-                key: stableKey(id))
+                key: stableKey(id), millimetres: CGDisplayScreenSize(id))
     }
 
     private func screenName(_ id: DisplayID) -> String {

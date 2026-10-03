@@ -71,6 +71,7 @@ public final class CalibrationWizard {
 extension CalibrationWizard {
     private static let lineFractions: [CGFloat] = [0.12, 0.88]
     private static let nudge: CGFloat = 0.1
+    private static let edgeMargin: CGFloat = 0.04
 
     private func makeStep(_ hop: Hop, line: Int, anchor: CGFloat? = nil, candidate: CGFloat? = nil) -> WizardStep {
         let fixed = anchor ?? defaultAnchor(hop, line: line)
@@ -79,20 +80,47 @@ extension CalibrationWizard {
                           candidate: clamped(moving.rounded(), within: hop.to.frame.length(along: hop.axis)))
     }
 
-    /// Lines start inside the span both screens share in today's arrangement.
+    /// Lines start where both screens are predicted to face each other, so the moving line
+    /// lands on its screen without the user having to look for it.
     private func defaultAnchor(_ hop: Hop, line: Int) -> CGFloat {
-        let axis = hop.axis
-        let from = hop.from.frame, to = hop.to.frame
-        let start = max(from.start(along: axis), to.start(along: axis))
-        let end = min(from.end(along: axis), to.end(along: axis))
-        let span = start < end ? start...end : from.start(along: axis)...from.end(along: axis)
-        let global = span.lowerBound + Self.lineFractions[line] * (span.upperBound - span.lowerBound)
-        return clamped((global - from.start(along: axis)).rounded(), within: from.length(along: axis))
+        let fromLength = hop.from.frame.length(along: hop.axis)
+        let span = facingSpan(hop) ?? 0...fromLength
+        let anchor = span.lowerBound + Self.lineFractions[line] * (span.upperBound - span.lowerBound)
+        return clamped(anchor.rounded(), within: fromLength)
     }
 
-    /// Where macOS believes the fixed line continues: the same global position.
+    /// Positions on `from` whose predicted continuation stays inside `to`, with a small margin.
+    private func facingSpan(_ hop: Hop) -> ClosedRange<CGFloat>? {
+        let fromLength = hop.from.frame.length(along: hop.axis)
+        let toLength = hop.to.frame.length(along: hop.axis)
+        let prediction = predictor(hop)
+        let margin = Self.edgeMargin * toLength
+        let ends = [prediction.inverse(margin), prediction.inverse(toLength - margin)]
+        let start = max(ends.min() ?? 0, Self.edgeMargin * fromLength)
+        let end = min(ends.max() ?? fromLength, fromLength * (1 - Self.edgeMargin))
+        return start < end ? start...end : nil
+    }
+
     private func predictedCandidate(_ hop: Hop, anchor: CGFloat) -> CGFloat {
-        hop.from.frame.start(along: hop.axis) + anchor - hop.to.frame.start(along: hop.axis)
+        predictor(hop).map(anchor)
+    }
+
+    /// The best guess before the user moves anything. The scale comes from the sizes the
+    /// monitors report. The offset comes from the first line of this edge once it is placed,
+    /// and before that from today's arrangement, assumed right in the middle of the shared span.
+    private func predictor(_ hop: Hop) -> LinearMap {
+        let scale = hop.reportedScale
+        if let first = samples.first { return LinearMap(scale: scale, through: first.from, first.to) }
+        let pivot = sharedMiddle(hop)
+        return LinearMap(scale: scale, through: pivot - hop.from.frame.start(along: hop.axis),
+                         pivot - hop.to.frame.start(along: hop.axis))
+    }
+
+    private func sharedMiddle(_ hop: Hop) -> CGFloat {
+        let axis = hop.axis
+        let start = max(hop.from.frame.start(along: axis), hop.to.frame.start(along: axis))
+        let end = min(hop.from.frame.end(along: axis), hop.to.frame.end(along: axis))
+        return start < end ? (start + end) / 2 : hop.from.frame.start(along: axis) + hop.from.frame.length(along: axis) / 2
     }
 
     private func nudgedTowardMiddle(_ step: WizardStep) -> CGFloat {
@@ -140,4 +168,18 @@ extension CalibrationWizard {
     private func clamped(_ position: CGFloat, within length: CGFloat) -> CGFloat {
         min(max(position, 0), length - 1)
     }
+}
+
+/// `to = scale * from + offset`, passing through one known pair of positions.
+struct LinearMap {
+    let scale: CGFloat
+    let offset: CGFloat
+
+    init(scale: CGFloat, through from: CGFloat, _ to: CGFloat) {
+        self.scale = scale
+        self.offset = to - scale * from
+    }
+
+    func map(_ position: CGFloat) -> CGFloat { scale * position + offset }
+    func inverse(_ position: CGFloat) -> CGFloat { (position - offset) / scale }
 }

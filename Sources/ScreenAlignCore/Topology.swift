@@ -14,6 +14,13 @@ public struct Hop: Equatable, Sendable {
         self.axis = axis
     }
 
+    /// How many points on `to` match one point on `from`, from the sizes the monitors report.
+    /// 1 when either monitor does not report its size.
+    public var reportedScale: CGFloat {
+        guard let fromDensity = from.density(along: axis), let toDensity = to.density(along: axis) else { return 1 }
+        return toDensity / fromDensity
+    }
+
     /// True when `to` sits after `from` along the crossing direction (right of it, or below it).
     public var leadsForward: Bool {
         axis == .horizontal ? to.frame.midX > from.frame.midX : to.frame.midY > from.frame.midY

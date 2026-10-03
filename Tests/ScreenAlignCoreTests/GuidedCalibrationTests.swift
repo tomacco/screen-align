@@ -132,3 +132,27 @@ extension ClosedRange where Bound == CGFloat {
         #expect(truthfulCandidate(for: step) < 0)
     }
 }
+
+@Suite struct ReportedSizeTests {
+    private let hop = Hop(from: reportingSize(midDell), to: reportingSize(macBook), axis: .horizontal)
+
+    @Test func reportedSizes_giveTheScaleBetweenScreens() {
+        #expect(abs(hop.reportedScale - 5.02 / 4.23) < 0.001)
+    }
+
+    @Test func secondLine_startsWhereItPhysicallyBelongs() throws {
+        let wizard = CalibrationWizard(displays: [reportingSize(midDell), reportingSize(macBook)])
+        var first = try #require(wizard.step)
+        while truthfulCandidate(for: first) < 0 { wizard.reportLineMissesScreen(); first = try #require(wizard.step) }
+        wizard.placeCandidate(at: truthfulCandidate(for: first))
+        _ = wizard.confirm()
+
+        let second = try #require(wizard.step)
+
+        #expect(abs(second.candidate - truthfulCandidate(for: second)) <= 1)
+    }
+
+    @Test func unknownSizes_fallBackToEqualScale() {
+        #expect(Hop(from: midDell, to: macBook, axis: .horizontal).reportedScale == 1)
+    }
+}
