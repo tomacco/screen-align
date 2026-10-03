@@ -1,5 +1,6 @@
-// ScreenAlign: align the vertical offset of multiple displays by eye.
-// Each screen shows the same set of horizontal lines. Move them until each line
+// ScreenAlign: align the offset of multiple displays by eye.
+// Side-by-side screens get horizontal lines (corrects height); stacked screens get
+// vertical lines (corrects left/right). V switches. Move the lines until each one
 // looks like one continuous physical line across all screens, then press Return:
 // the display arrangement is written with CGCompleteDisplayConfiguration(.permanently),
 // the same store System Settings > Displays > Arrange uses.
@@ -9,7 +10,7 @@ import Cocoa
 // MARK: - Model
 
 final class Model {
-    // Line positions per display, in points from the top of that display.
+    // Line positions per display, in points from the top (or left, when vertical) of that display.
     var lines: [CGDirectDisplayID: [CGFloat]] = [:]
     var lineCount = 1
     var sel: (display: CGDirectDisplayID, line: Int) = (CGMainDisplayID(), 0)
@@ -29,20 +30,48 @@ final class Model {
 
     var reference: CGDirectDisplayID { CGMainDisplayID() }
 
-    // Seed lines at the same global height on every display so an already aligned
+    // false: horizontal lines, corrects Y. true: vertical lines, corrects X.
+    var vertical = false
+
+    // Start in the axis the arrangement suggests: stacked screens span more height than width.
+    func detectAxis() {
+        let bs = displays.map { CGDisplayBounds($0) }
+        let u = bs.reduce(CGRect.null) { $0.union($1) }
+        vertical = u.height / (bs.map(\.height).max() ?? 1) > u.width / (bs.map(\.width).max() ?? 1)
+    }
+
+    // Displays that share the line with the reference: their span across the lines overlaps it.
+    // A screen above the main one takes no part in a horizontal pass, and vice versa.
+    var participants: [CGDirectDisplayID] {
+        let rb = CGDisplayBounds(reference)
+        return displays.filter {
+            let b = CGDisplayBounds($0)
+            return $0 == reference || (b.lo(vertical) < rb.hi(vertical) && b.hi(vertical) > rb.lo(vertical))
+        }
+    }
+
+    func toggleAxis() {
+        vertical.toggle()
+        lines = [:]
+        sel = (reference, 0)
+        seed()
+        status = vertical ? "Vertical lines: aligning stacked screens left/right." : "Horizontal lines: aligning side-by-side screens."
+    }
+
+    // Seed lines at the same global position on every display so an already aligned
     // arrangement starts at zero correction.
     func seed() {
-        let ds = displays
-        let top = ds.map { CGDisplayBounds($0).minY }.max() ?? 0
-        let bottom = ds.map { CGDisplayBounds($0).maxY }.min() ?? 0
+        let ds = participants, v = vertical
+        let top = ds.map { CGDisplayBounds($0).lo(v) }.max() ?? 0
+        let bottom = ds.map { CGDisplayBounds($0).hi(v) }.min() ?? 0
         for d in ds {
             let b = CGDisplayBounds(d)
             var ls = Array((lines[d] ?? []).prefix(lineCount))
             // Keep lines the user has placed; only add the missing ones.
             for k in ls.count..<lineCount {
                 let f = CGFloat(k + 1) / CGFloat(lineCount + 1)
-                let global = bottom > top ? top + f * (bottom - top) : b.minY + f * b.height
-                ls.append(min(max(global - b.minY, 0), b.height - 1).rounded())
+                let global = bottom > top ? top + f * (bottom - top) : b.lo(v) + f * b.len(v)
+                ls.append(min(max(global - b.lo(v), 0), b.len(v) - 1).rounded())
             }
             lines[d] = ls
         }
@@ -50,11 +79,11 @@ final class Model {
         if !ds.contains(sel.display) { sel.display = reference }
     }
 
-    // Per-line vertical shift (points) needed so display d's lines meet the reference's.
+    // Per-line shift (points) needed so display d's lines meet the reference's.
     func deltas(_ d: CGDirectDisplayID) -> [CGFloat] {
         let r = reference, rb = CGDisplayBounds(r), db = CGDisplayBounds(d)
         guard let rl = lines[r], let dl = lines[d] else { return [] }
-        return zip(rl, dl).map { (rb.minY + $0) - (db.minY + $1) }
+        return zip(rl, dl).map { (rb.lo(vertical) + $0) - (db.lo(vertical) + $1) }
     }
 
     func proposedShift(_ d: CGDirectDisplayID) -> Int {
@@ -64,7 +93,7 @@ final class Model {
     }
 
     func apply() {
-        let ds = displays.filter { $0 != reference }
+        let ds = participants.filter { $0 != reference }
         let shifts = ds.map { ($0, proposedShift($0)) }.filter { $0.1 != 0 }
         guard !shifts.isEmpty else { status = "Already aligned. Nothing to write."; return }
         backup = Dictionary(uniqueKeysWithValues: displays.map { ($0, CGDisplayBounds($0).origin) })
@@ -72,7 +101,8 @@ final class Model {
         guard CGBeginDisplayConfiguration(&cfg) == .success else { status = "Could not begin display configuration."; return }
         for (d, s) in shifts {
             let o = CGDisplayBounds(d).origin
-            CGConfigureDisplayOrigin(cfg, d, Int32(o.x), Int32(o.y) + Int32(s))
+            let dx = vertical ? Int32(s) : 0, dy = vertical ? 0 : Int32(s)
+            CGConfigureDisplayOrigin(cfg, d, Int32(o.x) + dx, Int32(o.y) + dy)
         }
         let err = CGCompleteDisplayConfiguration(cfg, .permanently)
         status = err == .success
@@ -93,6 +123,13 @@ final class Model {
     func name(_ d: CGDirectDisplayID) -> String {
         NSScreen.screens.first { $0.displayID == d }?.localizedName ?? "Display \(d)"
     }
+}
+
+extension CGRect {
+    // Position and length along the axis a line moves on (Y for horizontal lines, X for vertical).
+    func lo(_ vertical: Bool) -> CGFloat { vertical ? minX : minY }
+    func hi(_ vertical: Bool) -> CGFloat { vertical ? maxX : maxY }
+    func len(_ vertical: Bool) -> CGFloat { vertical ? width : height }
 }
 
 extension NSScreen {
@@ -131,27 +168,36 @@ final class AlignView: NSView {
         bounds.fill()
         let b = CGDisplayBounds(display)
         let hair = 1 / (window?.backingScaleFactor ?? 2)   // one device pixel
+        let v = model.vertical
+        // A line at position p along the axis, `t` thick, spanning the screen (or `from`..`from+span`).
+        func bar(_ p: CGFloat, _ t: CGFloat, from: CGFloat = 0, span: CGFloat? = nil) -> NSRect {
+            let s = span ?? (v ? bounds.height : bounds.width)
+            return v ? NSRect(x: p, y: from, width: t, height: s) : NSRect(x: from, y: p, width: s, height: t)
+        }
+        let far = v ? bounds.height : bounds.width
 
         for (k, y) in (model.lines[display] ?? []).enumerated() {
             let c = Self.palette[k % Self.palette.count]
             let selected = model.sel.display == display && model.sel.line == k
             if selected {
                 c.withAlphaComponent(0.18).setFill()
-                NSRect(x: 0, y: y - 6, width: bounds.width, height: 12).fill()
+                bar(y - 6, 12).fill()
             }
             c.setFill()
-            NSRect(x: 0, y: y, width: bounds.width, height: hair).fill()
+            bar(y, hair).fill()
             // Edge ticks make the line easy to find next to the bezel.
-            NSRect(x: 0, y: y - 8, width: 3, height: 16 + hair).fill()
-            NSRect(x: bounds.width - 3, y: y - 8, width: 3, height: 16 + hair).fill()
-            label("\(k + 1)  y=\(Int(y))", at: NSPoint(x: bounds.midX - 40, y: y - 20), color: c)
+            bar(y - 8, 16 + hair, from: 0, span: 3).fill()
+            bar(y - 8, 16 + hair, from: far - 3, span: 3).fill()
+            label("\(k + 1)  \(v ? "x" : "y")=\(Int(y))",
+                  at: v ? NSPoint(x: y + 6, y: bounds.midY - 160) : NSPoint(x: bounds.midX - 40, y: y - 20), color: c)
         }
 
         if model.testMode {
-            let my = model.mouse.y - b.minY
-            if my >= 0 && my < b.height {
+            let my = (v ? model.mouse.x : model.mouse.y) - b.lo(v)
+            if my >= 0 && my < b.len(v) {
                 let p = NSBezierPath()
-                p.move(to: NSPoint(x: 0, y: my)); p.line(to: NSPoint(x: bounds.width, y: my))
+                p.move(to: v ? NSPoint(x: my, y: 0) : NSPoint(x: 0, y: my))
+                p.line(to: v ? NSPoint(x: my, y: far) : NSPoint(x: far, y: my))
                 p.lineWidth = hair
                 p.setLineDash([6, 4], count: 2, phase: 0)
                 NSColor.white.withAlphaComponent(0.85).setStroke()
@@ -166,18 +212,20 @@ final class AlignView: NSView {
         var text = "\(model.name(display))  \(Int(b.width))x\(Int(b.height)) pt @ (\(Int(b.minX)), \(Int(b.minY)))"
         if isRef {
             text += "\nREFERENCE display (stays fixed)"
+        } else if !model.participants.contains(display) {
+            text += "\nNot in this pass: it does not share a \(model.vertical ? "vertical" : "horizontal") line with the reference.\nPress V to switch axis."
         } else {
             let ds = model.deltas(display)
             let shift = model.proposedShift(display)
-            text += "\nCorrection: \(shift > 0 ? "+" : "")\(shift) pt" + (shift == 0 ? "  aligned" : "")
+            text += "\nCorrection \(model.vertical ? "X" : "Y"): \(shift > 0 ? "+" : "")\(shift) pt" + (shift == 0 ? "  aligned" : "")
             if ds.count > 1, let lo = ds.min(), let hi = ds.max(), hi - lo >= 1 {
                 text += String(format: "\nLines disagree by %.0f pt: physical scale differs between screens,\nso the cursor can match exactly at one height only.", hi - lo)
             }
         }
         text += """
         \n
-        drag / ↑↓ move line (⇧ x10)   Tab next line   N add line   ⌫ remove line
-        T cursor test line   B background   Return APPLY   U undo   Esc quit
+        drag / arrows move line (⇧ x10)   Tab next line   N add line   ⌫ remove line
+        V \(model.vertical ? "horizontal" : "vertical") lines   T cursor test line   B background   Return APPLY   U undo   Esc quit
         \(model.status)
         """
         let attrs: [NSAttributedString.Key: Any] = [
@@ -201,6 +249,12 @@ final class AlignView: NSView {
 
     // MARK: input
 
+    // Mouse position along the axis the lines move on.
+    func axisPos(_ e: NSEvent) -> CGFloat {
+        let p = convert(e.locationInWindow, from: nil)
+        return model.vertical ? p.x : p.y
+    }
+
     func nearestLine(_ y: CGFloat) -> Int {
         let ls = model.lines[display] ?? []
         return ls.indices.min { abs(ls[$0] - y) < abs(ls[$1] - y) } ?? 0
@@ -208,7 +262,8 @@ final class AlignView: NSView {
 
     override func mouseDown(with e: NSEvent) {
         window?.makeKey()
-        let y = convert(e.locationInWindow, from: nil).y
+        guard model.participants.contains(display) else { return }
+        let y = axisPos(e)
         let k = nearestLine(y)
         model.sel = (display, k)
         dragging = abs((model.lines[display]?[k] ?? y) - y) < 24 ? k : nil
@@ -217,8 +272,8 @@ final class AlignView: NSView {
 
     override func mouseDragged(with e: NSEvent) {
         guard let k = dragging else { return }
-        let y = convert(e.locationInWindow, from: nil).y
-        model.lines[display]?[k] = min(max(y.rounded(), 0), bounds.height - 1)
+        let y = axisPos(e)
+        model.lines[display]?[k] = min(max(y.rounded(), 0), CGDisplayBounds(display).len(model.vertical) - 1)
         redrawAll()
     }
 
@@ -228,8 +283,8 @@ final class AlignView: NSView {
         let step: CGFloat = e.modifierFlags.contains(.shift) ? 10 : 1
         let d = model.sel.display, k = model.sel.line
         switch e.keyCode {
-        case 126: move(d, k, -step)                       // up
-        case 125: move(d, k, step)                        // down
+        case 126, 123: move(d, k, -step)                  // up, left
+        case 125, 124: move(d, k, step)                   // down, right
         case 48: cycleSelection()                         // tab
         case 36, 76: model.apply()                        // return / enter
         case 53: NSApp.terminate(nil)                     // esc
@@ -243,6 +298,7 @@ final class AlignView: NSView {
             switch e.charactersIgnoringModifiers?.lowercased() {
             case "n": model.lineCount += 1; model.seed(); model.sel.line = model.lineCount - 1
             case "t": model.testMode.toggle()
+            case "v": model.toggleAxis()
             case "b": model.dim = model.dim > 0.9 ? 0.5 : (model.dim > 0.6 ? 1.0 : 0.78)
             case "u": model.undo()
             case "q": NSApp.terminate(nil)
@@ -254,11 +310,11 @@ final class AlignView: NSView {
 
     func move(_ d: CGDirectDisplayID, _ k: Int, _ by: CGFloat) {
         guard let y = model.lines[d]?[k] else { return }
-        model.lines[d]?[k] = min(max(y + by, 0), CGDisplayBounds(d).height - 1)
+        model.lines[d]?[k] = min(max(y + by, 0), CGDisplayBounds(d).len(model.vertical) - 1)
     }
 
     func cycleSelection() {
-        let ds = model.displays
+        let ds = model.participants
         guard let i = ds.firstIndex(of: model.sel.display) else { return }
         if model.sel.line + 1 < model.lineCount { model.sel.line += 1 }
         else { model.sel = (ds[(i + 1) % ds.count], 0) }
@@ -277,6 +333,7 @@ final class Controller: NSObject, NSApplicationDelegate {
     var lastMouse = CGPoint(x: -1, y: -1)
 
     func applicationDidFinishLaunching(_ n: Notification) {
+        model.detectAxis()
         model.seed()
         rebuild()
         NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification,
