@@ -1,0 +1,20 @@
+cask "screen-align" do
+  version "__VERSION__"
+  sha256 "__SHA256__"
+
+  url "https://github.com/tomacco/screen-align/releases/download/v#{version}/ScreenAlign.zip"
+  name "ScreenAlign"
+  desc "Line up multiple screens by eye so the cursor crosses at the right height"
+  homepage "https://github.com/tomacco/screen-align"
+
+  depends_on macos: ">= :ventura"
+
+  app "ScreenAlign.app"
+
+  zap trash: "~/Library/Saved Application State/co.tomac.screenalign.savedState"
+
+  caveats <<~EOS
+    ScreenAlign is not notarized yet. If macOS refuses to open it, run:
+      xattr -dr com.apple.quarantine "#{appdir}/ScreenAlign.app"
+  EOS
+end

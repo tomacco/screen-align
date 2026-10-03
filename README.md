@@ -25,7 +25,13 @@ ScreenAlign covers each screen with a line. You move the lines until they look l
 
 ## Install
 
-Download `ScreenAlign.zip` from the [latest release](https://github.com/tomacco/screen-align/releases/latest), unzip it and move `ScreenAlign.app` to Applications.
+With [Homebrew](https://brew.sh):
+
+```bash
+brew install --cask tomacco/tap/screen-align
+```
+
+Or download `ScreenAlign.zip` from the [latest release](https://github.com/tomacco/screen-align/releases/latest), unzip it and move `ScreenAlign.app` to Applications.
 
 The app is not notarized yet, so the first launch needs one extra step: right-click the app, choose **Open**, then **Open** again. Or run:
 
@@ -92,6 +98,10 @@ scripts/build-app.sh       builds and signs the .app bundle
 ## Contributing
 
 Issues and pull requests are welcome. The code follows [Primera Plana](https://github.com/tomacco/primera-plana): public methods read as a short list of named steps, and the detail lives in private leaves below them. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## Releasing
+
+Push a tag such as `v1.1.0`. The release workflow tests, builds a universal app, attaches the zip to a GitHub release and, when the Apple signing secrets are set, signs and notarizes it. Steps in [docs/releasing.md](docs/releasing.md).
 
 ## License
 
