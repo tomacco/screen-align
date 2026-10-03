@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 380" width="800" height="380" role="img" aria-labelledby="t d">
+  <title id="t">ScreenAlign demo</title>
+  <desc id="d">Two screens show a red line each. The line on the left screen moves until both read as one line, Return writes the arrangement, and the cursor then crosses between screens at the same height.</desc>
+  <style>
+    text { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif; }
+    .caption { font-size: 17px; fill: #e6e6e6; font-weight: 500; }
+    .label { font-size: 11px; fill: #8b8b8b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  </style>
+
+  <rect width="800" height="380" rx="14" fill="#16181d"/>
+
+  <!-- External monitor -->
+  <rect x="40" y="36" width="410" height="244" rx="8" fill="#2a2d34"/>
+  <rect x="50" y="46" width="390" height="224" rx="3" fill="#0b0c0f"/>
+  <rect x="225" y="280" width="60" height="26" fill="#2a2d34"/>
+  <rect x="185" y="304" width="140" height="8" rx="4" fill="#2a2d34"/>
+  <text class="label" x="60" y="64">External 2560x1440</text>
+
+  <!-- Laptop -->
+  <rect x="478" y="128" width="276" height="176" rx="8" fill="#2a2d34"/>
+  <rect x="488" y="138" width="256" height="158" rx="3" fill="#0b0c0f"/>
+  <path d="M458 304 H774 L762 316 H470 Z" fill="#2a2d34"/>
+  <text class="label" x="498" y="156">Built-in 1512x982</text>
+
+  <!-- Line on the external screen: starts too low, moves up to meet the laptop line -->
+  <line x1="50" x2="440" y1="236" y2="236" stroke="#ff453a" stroke-width="2">
+    <animate attributeName="y1" dur="9s" repeatCount="indefinite" values="236;236;214;214" keyTimes="0;0.11;0.33;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0 0 1 1"/>
+    <animate attributeName="y2" dur="9s" repeatCount="indefinite" values="236;236;214;214" keyTimes="0;0.11;0.33;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0 0 1 1"/>
+    <animate attributeName="stroke" dur="9s" repeatCount="indefinite" values="#ff453a;#ff453a;#30d158;#30d158;#ff453a" keyTimes="0;0.36;0.4;0.95;1"/>
+  </line>
+
+  <!-- Line on the laptop: the reference, stays still -->
+  <line x1="488" x2="744" y1="214" y2="214" stroke="#ff453a" stroke-width="2">
+    <animate attributeName="stroke" dur="9s" repeatCount="indefinite" values="#ff453a;#ff453a;#30d158;#30d158;#ff453a" keyTimes="0;0.36;0.4;0.95;1"/>
+  </line>
+
+  <!-- Hand dragging the external line -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.08;0.11;0.33;0.36;1"/>
+    <animateTransform attributeName="transform" type="translate" dur="9s" repeatCount="indefinite" values="250 236;250 236;250 214;250 214" keyTimes="0;0.11;0.33;1" calcMode="spline" keySplines="0 0 1 1;0.4 0 0.2 1;0 0 1 1"/>
+    <circle r="11" fill="none" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2"/>
+    <path d="M0 -20 V-14 M0 14 V20" stroke="#ffffff" stroke-opacity="0.8" stroke-width="2"/>
+  </g>
+
+  <!-- Return key -->
+  <g opacity="0" transform="translate(245 140)">
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.34;0.36;0.44;0.47;1"/>
+    <rect x="-46" y="-20" width="92" height="40" rx="8" fill="#e6e6e6"/>
+    <text x="0" y="6" text-anchor="middle" font-size="16" font-weight="600" fill="#16181d">Return</text>
+  </g>
+
+  <!-- Cursor crossing at the same height -->
+  <g opacity="0">
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.47;0.49;0.92;0.95;1"/>
+    <animateTransform attributeName="transform" type="translate" dur="9s" repeatCount="indefinite" values="300 214;300 214;650 214;650 214" keyTimes="0;0.49;0.86;1" calcMode="spline" keySplines="0 0 1 1;0.45 0 0.55 1;0 0 1 1"/>
+    <path d="M0 0 L0 17 L4.5 12.8 L7.6 19.6 L10.4 18.4 L7.4 11.8 L13 11.8 Z" fill="#ffffff" stroke="#000000" stroke-width="1.1" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Captions -->
+  <text class="caption" x="400" y="352" text-anchor="middle" opacity="0">1. Move the lines until they read as one line
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.02;0.32;0.34;1"/>
+  </text>
+  <text class="caption" x="400" y="352" text-anchor="middle" opacity="0">2. Return writes the display arrangement
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.34;0.36;0.46;0.48;1"/>
+  </text>
+  <text class="caption" x="400" y="352" text-anchor="middle" opacity="0">3. The cursor crosses at the same height
+    <animate attributeName="opacity" dur="9s" repeatCount="indefinite" values="0;0;1;1;0;0" keyTimes="0;0.48;0.5;0.93;0.96;1"/>
+  </text>
+</svg>
