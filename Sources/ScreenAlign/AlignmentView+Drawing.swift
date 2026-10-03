@@ -2,20 +2,19 @@ import AppKit
 import ScreenAlignCore
 
 extension AlignmentView {
-    private static let palette: [NSColor] = [.systemRed, .systemGreen, .systemCyan, .systemYellow, .systemPink, .systemOrange]
     private static let help = """
         drag / arrows move line (shift x10)   Tab next line   N add line   Delete remove line
         V switch axis   T cursor line   B background   Return APPLY   U undo   Esc quit
         """
 
     func drawBackdrop() {
-        NSColor(white: 0, alpha: state.backdrop.opacity).setFill()
+        Palette.ink.withAlphaComponent(state.backdrop.opacity).setFill()
         bounds.fill()
     }
 
     func drawLines() {
         for (index, position) in state.session.lines(on: displayID).enumerated() {
-            drawLine(index, at: position, color: Self.palette[index % Self.palette.count])
+            drawLine(index, at: position, color: Palette.lines[index % Palette.lines.count])
         }
     }
 
@@ -30,8 +29,11 @@ extension AlignmentView {
         let text = StatusReport.describe(display, in: state.session) + "\n\n" + Self.help + "\n" + state.status
         let content = NSAttributedString(string: text, attributes: Self.panelAttributes)
         let box = panelBox(for: content)
-        NSColor(white: 0.1, alpha: 0.9).setFill()
-        NSBezierPath(roundedRect: box, xRadius: 8, yRadius: 8).fill()
+        let outline = NSBezierPath(roundedRect: box, xRadius: 8, yRadius: 8)
+        Palette.panel.withAlphaComponent(0.94).setFill()
+        outline.fill()
+        Palette.panelEdge.setStroke()
+        outline.stroke()
         content.draw(with: box.insetBy(dx: 12, dy: 8), options: .usesLineFragmentOrigin)
     }
 }
@@ -41,7 +43,7 @@ extension AlignmentView {
 extension AlignmentView {
     private static let panelAttributes: [NSAttributedString.Key: Any] = [
         .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
-        .foregroundColor: NSColor.white,
+        .foregroundColor: Palette.text,
     ]
 
     private var axis: Axis { state.session.axis }
@@ -84,7 +86,7 @@ extension AlignmentView {
         path.line(to: axis == .vertical ? NSPoint(x: position, y: span) : NSPoint(x: span, y: position))
         path.lineWidth = hairline
         path.setLineDash([6, 4], count: 2, phase: 0)
-        NSColor.white.withAlphaComponent(0.85).setStroke()
+        Palette.guide.setStroke()
         path.stroke()
     }
 

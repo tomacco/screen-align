@@ -10,9 +10,9 @@
 
 <p align="center">
   <a href="https://github.com/tomacco/screen-align/actions/workflows/ci.yml"><img src="https://github.com/tomacco/screen-align/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <img src="https://img.shields.io/badge/macOS-13%2B-black?logo=apple" alt="macOS 13+"/>
+  <img src="https://img.shields.io/badge/macOS-13%2B-0E1116?logo=apple" alt="macOS 13+"/>
   <img src="https://img.shields.io/badge/Swift-5.10%2B-F05138?logo=swift&logoColor=white" alt="Swift 5.10+"/>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"/></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-56B4E9" alt="MIT"/></a>
 </p>
 
 ---
@@ -43,10 +43,10 @@ To build it yourself, see [Build from source](#build-from-source).
 
 ## Use
 
-1. Open ScreenAlign. Every screen gets a dark overlay with a red line.
+1. Open ScreenAlign. Every screen gets a dark overlay with an amber line.
 2. Drag each line, or select it and use the arrow keys, until all lines read as one continuous line across the bezels. The built-in screen (the main display) is the reference and does not move.
 3. Press **Return**. The arrangement is written immediately.
-4. Press **T** and move the mouse across the bezel. The dashed cursor line should land on the red line on every screen.
+4. Press **T** and move the mouse across the bezel. The dashed cursor line should land on the amber line on every screen.
 
 | Key | Action |
 |-----|--------|
