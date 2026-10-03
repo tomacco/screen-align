@@ -19,6 +19,13 @@ public struct CrossingCorrector {
         return abs(corrected.position(along: calibration.axis) - current.position(along: calibration.axis)) >= 1 ? corrected : nil
     }
 
+    /// The two screens involved when the cursor moved from one screen to another.
+    public func crossedDisplays(from previous: CGPoint, to current: CGPoint) -> (from: DisplayID, to: DisplayID)? {
+        guard let source = display(containing: previous), let target = display(containing: current),
+              source.id != target.id else { return nil }
+        return (source.id, target.id)
+    }
+
     public var hasCalibrations: Bool { !calibrations.isEmpty && calibrations.contains(where: isUsable) }
 }
 

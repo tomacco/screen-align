@@ -25,6 +25,9 @@ final class AppController: NSObject, NSApplicationDelegate {
         installStatusMenu()
         observeArrangementChanges()
         crossing.use(store.load())
+        crossing.onEdgeCrossed = { [weak self] in self?.calibration?.markCrossed($0, $1) }
+        if Launch.previewCelebration { return previewCelebration() }
+        if Launch.openCalibration { return startCalibration() }
         crossing.isCalibrated ? resumeCrossing() : startCalibration()
     }
 
@@ -80,12 +83,27 @@ extension AppController {
         manual?.start()
     }
 
+    /// Writes the result, turns physical crossing on, and lets the user try it on the final screen.
     private func finishCalibration(_ calibrations: [EdgeCalibration]) {
         store.save(calibrations)
         _ = aligner.move(to: ArrangementPlanner.origins(for: arrangement.activeDisplays(), calibrations: calibrations))
         crossing.use(calibrations)
         crossingWanted = true
+        crossing.start()
+        calibration?.celebrate(onDone: { [weak self] in self?.returnToBackground() },
+                               onUndo: { [weak self] in self?.undoCalibration() })
+    }
+
+    private func undoCalibration() {
+        _ = aligner.undo()
         returnToBackground()
+    }
+
+    /// `-previewCelebration YES` shows the final screen without measuring or writing anything.
+    private func previewCelebration() {
+        startCalibration()
+        crossing.start()
+        calibration?.celebrate(onDone: { NSApp.terminate(nil) }, onUndo: { NSApp.terminate(nil) })
     }
 
     private func returnToBackground() {
@@ -109,4 +127,10 @@ extension AppController {
         manual?.stop()
         manual = nil
     }
+}
+
+enum Launch {
+    static var previewCelebration: Bool { UserDefaults.standard.bool(forKey: "previewCelebration") }
+    /// `-calibrate YES` opens the wizard at launch even when a calibration exists.
+    static var openCalibration: Bool { UserDefaults.standard.bool(forKey: "calibrate") }
 }

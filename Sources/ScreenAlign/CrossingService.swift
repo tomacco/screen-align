@@ -18,6 +18,9 @@ final class CrossingService {
         warpSource?.localEventsSuppressionInterval = 0
     }
 
+    /// Called whenever the cursor moves from one screen to another.
+    var onEdgeCrossed: ((DisplayID, DisplayID) -> Void)?
+
     var isRunning: Bool { timer != nil }
     var isCalibrated: Bool { corrector.hasCalibrations }
 
@@ -50,6 +53,7 @@ final class CrossingService {
 extension CrossingService {
     private func followCursor() {
         let current = CGEvent(source: nil)?.location ?? .zero
+        reportCrossing(to: current)
         guard !isDragging(), let last = previous,
               let corrected = corrector.correctedLocation(from: last, to: current) else {
             previous = current
@@ -57,6 +61,11 @@ extension CrossingService {
         }
         warp(to: corrected)
         previous = corrected
+    }
+
+    private func reportCrossing(to current: CGPoint) {
+        guard let last = previous, let crossed = corrector.crossedDisplays(from: last, to: current) else { return }
+        onEdgeCrossed?(crossed.from, crossed.to)
     }
 
     /// Warping during a drag can drop the drag, so window and file drags cross uncorrected.
