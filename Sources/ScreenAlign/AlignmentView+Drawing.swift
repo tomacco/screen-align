@@ -4,7 +4,7 @@ import ScreenAlignCore
 extension AlignmentView {
     private static let help = """
         drag / arrows move line (shift x10)   Tab next line   N add line   Delete remove line
-        V switch axis   T cursor line   B background   Return APPLY   U undo   Esc quit
+        V switch axis   T cursor line   B background   Return APPLY   U undo   Esc close
         """
 
     func drawBackdrop() {

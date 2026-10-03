@@ -1,42 +1,51 @@
 import AppKit
 import ScreenAlignCore
 
-/// Owns one overlay window per screen and turns user commands into session changes.
+/// Runs from the menu bar. Opens guided calibration on first use, then keeps physical
+/// crossing running in the background.
 @MainActor
 final class AppController: NSObject, NSApplicationDelegate {
-    private let state: AppState
-    private var overlays: [OverlayWindow] = []
-    private var cursorTimer: Timer?
+    private let arrangement: DisplayArrangement
+    private let aligner: DisplayAligner
+    private let store: CalibrationStore
+    private let crossing: CrossingService
+    private var statusMenu: StatusMenu?
+    private var calibration: CalibrationMode?
+    private var manual: ManualAlignmentMode?
+    private var crossingWanted = true
 
-    init(arrangement: DisplayArrangement) {
-        self.state = AppState(arrangement: arrangement)
+    init(arrangement: DisplayArrangement, store: CalibrationStore) {
+        self.arrangement = arrangement
+        self.aligner = DisplayAligner(arrangement: arrangement)
+        self.store = store
+        self.crossing = CrossingService(arrangement: arrangement)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        showOverlays()
+        installStatusMenu()
         observeArrangementChanges()
-        trackCursor()
-        NSApp.activate(ignoringOtherApps: true)
+        crossing.use(store.load())
+        crossing.isCalibrated ? resumeCrossing() : startCalibration()
     }
 
-    func perform(_ command: Command) {
-        execute(command)
-        redraw()
-    }
-
-    func redraw() {
-        overlays.forEach { $0.contentView?.needsDisplay = true }
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        startCalibration()
+        return false
     }
 }
 
 // MARK: - Leaves
 
 extension AppController {
-    private func showOverlays() {
-        overlays.forEach { $0.orderOut(nil) }
-        overlays = NSScreen.screens.map { OverlayWindow(screen: $0, state: state, controller: self) }
-        overlays.forEach { $0.orderFrontRegardless() }
-        focusSelectedScreen()
+    private func installStatusMenu() {
+        statusMenu = StatusMenu(
+            actions: .init(calibrate: { [weak self] in self?.startCalibration() },
+                           manual: { [weak self] in self?.startManual() },
+                           toggleCrossing: { [weak self] in self?.toggleCrossing() },
+                           undo: { [weak self] in _ = self?.aligner.undo() },
+                           quit: { NSApp.terminate(nil) }),
+            isCrossingOn: { [weak self] in self?.crossing.isRunning ?? false },
+            isCalibrated: { [weak self] in self?.crossing.isCalibrated ?? false })
     }
 
     private func observeArrangementChanges() {
@@ -48,50 +57,56 @@ extension AppController {
     }
 
     private func arrangementDidChange() {
-        state.session.update(displays: state.displays)
-        showOverlays()
+        crossing.refreshDisplays()
+        manual?.arrangementDidChange()
     }
 
-    private func trackCursor() {
-        cursorTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshCursor() }
-        }
+    private func startCalibration() {
+        closeOverlays()
+        crossing.stop()
+        calibration = CalibrationMode(
+            displays: arrangement.activeDisplays(),
+            onFinish: { [weak self] in self?.finishCalibration($0) },
+            onManual: { [weak self] in self?.startManual() },
+            onCancel: { [weak self] in self?.returnToBackground() })
+        calibration?.start()
     }
 
-    private func refreshCursor() {
-        let location = CGEvent(source: nil)?.location ?? .zero
-        guard state.showsCursorLine, location != state.cursor else { return }
-        state.cursor = location
-        redraw()
+    private func startManual() {
+        closeOverlays()
+        crossing.stop()
+        manual = ManualAlignmentMode(arrangement: arrangement, aligner: aligner,
+                                     onClose: { [weak self] in self?.returnToBackground() })
+        manual?.start()
     }
 
-    private func execute(_ command: Command) {
-        switch command {
-        case .moveLine(let points): state.session.moveSelected(by: points)
-        case .selectNextLine: selectNextLine()
-        case .addLine: state.session.addLine()
-        case .removeLine: state.session.removeSelectedLine()
-        case .toggleAxis: toggleAxis()
-        case .toggleCursorLine: state.showsCursorLine.toggle()
-        case .cycleBackdrop: state.backdrop = state.backdrop.next
-        case .apply: state.status = StatusReport.describe(state.aligner.apply(state.session), names: state.displayNames())
-        case .undo: state.status = StatusReport.describe(state.aligner.undo())
-        case .quit: NSApp.terminate(nil)
-        }
+    private func finishCalibration(_ calibrations: [EdgeCalibration]) {
+        store.save(calibrations)
+        _ = aligner.move(to: ArrangementPlanner.origins(for: arrangement.activeDisplays(), calibrations: calibrations))
+        crossing.use(calibrations)
+        crossingWanted = true
+        returnToBackground()
     }
 
-    private func selectNextLine() {
-        state.session.selectNext()
-        focusSelectedScreen()
+    private func returnToBackground() {
+        closeOverlays()
+        crossing.refreshDisplays()
+        resumeCrossing()
     }
 
-    private func toggleAxis() {
-        state.session.toggleAxis()
-        state.status = StatusReport.describe(state.session.axis)
+    private func resumeCrossing() {
+        if crossingWanted && crossing.isCalibrated { crossing.start() }
     }
 
-    private func focusSelectedScreen() {
-        let selected = overlays.first { $0.displayID == state.session.selection.display }
-        (selected ?? overlays.first)?.makeKey()
+    private func toggleCrossing() {
+        crossingWanted = !crossing.isRunning
+        crossingWanted ? crossing.start() : crossing.stop()
+    }
+
+    private func closeOverlays() {
+        calibration?.stop()
+        calibration = nil
+        manual?.stop()
+        manual = nil
     }
 }

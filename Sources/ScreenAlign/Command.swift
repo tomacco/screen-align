@@ -11,7 +11,7 @@ enum Command {
     case cycleBackdrop
     case apply
     case undo
-    case quit
+    case close
 
     init?(_ event: NSEvent) {
         guard let command = Command.decodeKey(event.keyCode, step: Command.step(event))
@@ -34,7 +34,7 @@ extension Command {
         case 48: return .selectNextLine              // tab
         case 36, 76: return .apply                   // return, enter
         case 51, 117: return .removeLine             // delete, forward delete
-        case 53: return .quit                        // escape
+        case 53: return .close                       // escape
         default: return nil
         }
     }
@@ -46,7 +46,7 @@ extension Command {
         case "t": return .toggleCursorLine
         case "b": return .cycleBackdrop
         case "u": return .undo
-        case "q": return .quit
+        case "q": return .close
         default: return nil
         }
     }

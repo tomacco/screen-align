@@ -8,12 +8,15 @@ public struct Display: Hashable, Sendable {
     public let name: String
     public let frame: CGRect
     public let isMain: Bool
+    /// Stable across reconnects and reboots, unlike `id`. Used to store calibrations.
+    public let key: String
 
-    public init(id: DisplayID, name: String, frame: CGRect, isMain: Bool) {
+    public init(id: DisplayID, name: String, frame: CGRect, isMain: Bool, key: String? = nil) {
         self.id = id
         self.name = name
         self.frame = frame
         self.isMain = isMain
+        self.key = key ?? "display-\(id)"
     }
 }
 

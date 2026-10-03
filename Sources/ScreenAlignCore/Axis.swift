@@ -3,7 +3,7 @@ import CoreGraphics
 /// The direction the alignment lines run in.
 /// Horizontal lines align screens placed side by side (corrects Y).
 /// Vertical lines align screens stacked on top of each other (corrects X).
-public enum Axis: Sendable {
+public enum Axis: String, Codable, Sendable {
     case horizontal
     case vertical
 
@@ -28,4 +28,8 @@ extension CGRect {
 
 extension CGPoint {
     public func position(along axis: Axis) -> CGFloat { axis == .vertical ? x : y }
+
+    public func setting(_ value: CGFloat, along axis: Axis) -> CGPoint {
+        axis == .vertical ? CGPoint(x: value, y: y) : CGPoint(x: x, y: value)
+    }
 }

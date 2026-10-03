@@ -34,11 +34,19 @@ extension SystemDisplayArrangement {
     }
 
     private func makeDisplay(_ id: DisplayID) -> Display {
-        Display(id: id, name: screenName(id), frame: CGDisplayBounds(id), isMain: CGDisplayIsMain(id) != 0)
+        Display(id: id, name: screenName(id), frame: CGDisplayBounds(id), isMain: CGDisplayIsMain(id) != 0,
+                key: stableKey(id))
     }
 
     private func screenName(_ id: DisplayID) -> String {
         NSScreen.screens.first { $0.displayID == id }?.localizedName ?? "Display \(id)"
+    }
+
+    /// Vendor, model and serial survive reconnects; the unit number separates twins without a serial.
+    private func stableKey(_ id: DisplayID) -> String {
+        let serial = CGDisplaySerialNumber(id)
+        let base = "\(CGDisplayVendorNumber(id))-\(CGDisplayModelNumber(id))-\(serial)"
+        return serial == 0 ? base + "-unit\(CGDisplayUnitNumber(id))" : base
     }
 
     private func stage(_ origins: [DisplayID: CGPoint], in configuration: CGDisplayConfigRef?) {

@@ -1,15 +1,21 @@
 import AppKit
 import ScreenAlignCore
 
+@MainActor
+protocol AlignmentViewDelegate: AnyObject {
+    func perform(_ command: Command)
+    func redraw()
+}
+
 /// Draws the lines, the cursor guide and the info panel for one screen, and takes mouse and key input.
 @MainActor
 final class AlignmentView: NSView {
     let displayID: DisplayID
     let state: AppState
-    weak var controller: AppController?
+    weak var controller: AlignmentViewDelegate?
     var draggedLine: Int?
 
-    init(displayID: DisplayID, size: NSSize, state: AppState, controller: AppController) {
+    init(displayID: DisplayID, size: NSSize, state: AppState, controller: AlignmentViewDelegate) {
         self.displayID = displayID
         self.state = state
         self.controller = controller

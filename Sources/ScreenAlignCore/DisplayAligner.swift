@@ -31,6 +31,14 @@ public final class DisplayAligner {
         return commit(targets, remembering: currentOrigins(displays), corrections: corrections)
     }
 
+    /// Moves displays to explicit origins, keeping the current arrangement for undo.
+    public func move(to origins: [DisplayID: CGPoint]) -> Result<Void, ArrangementError> {
+        let previous = currentOrigins(arrangement.activeDisplays())
+        let result = arrangement.moveDisplays(to: origins)
+        if case .success = result { previousOrigins = previous }
+        return result
+    }
+
     public func undo() -> UndoOutcome {
         guard let previous = previousOrigins else { return .nothingToUndo }
 

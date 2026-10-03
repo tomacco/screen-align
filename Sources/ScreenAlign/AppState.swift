@@ -12,10 +12,10 @@ final class AppState {
     var backdrop = Backdrop.dim
     var cursor = CGPoint.zero
 
-    init(arrangement: DisplayArrangement) {
+    init(arrangement: DisplayArrangement, aligner: DisplayAligner) {
         self.arrangement = arrangement
         self.session = AlignmentSession(displays: arrangement.activeDisplays())
-        self.aligner = DisplayAligner(arrangement: arrangement)
+        self.aligner = aligner
     }
 
     var displays: [Display] { arrangement.activeDisplays() }
